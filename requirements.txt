@@ -1,0 +1,22 @@
+# Core FastAPI dependencies
+fastapi==0.115.9
+uvicorn==0.32.1
+python-dotenv==1.0.1
+pydantic==2.10.4
+python-multipart==0.0.20
+
+# Data processing
+pandas==2.2.3
+
+# LangChain and LangGraph
+langchain==0.3.25
+langchain-openai==0.2.10
+langchain-community==0.3.21
+langgraph==0.2.50
+
+# Vector store
+faiss-cpu==1.11.0
+
+# Database
+sqlalchemy==2.0.41
+pyodbc==5.2.0
