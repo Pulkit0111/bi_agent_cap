@@ -121,17 +121,55 @@ async def chat_with_enhanced_agent(request: ChatRequest):
                 except (json.JSONDecodeError, TypeError):
                     continue
         
-        return {
-            "user_message": request.message,
-            "agent_response": agent_reply,
-            "tools_used": used_tools,
-            "sql_query": sql_query,
-            "sql_results": sql_results,
-            "reflection_applied": "reflect_on_sql" in used_tools,
-            "reflection_results": reflection_results,
-            "thread_id": request.thread_id,
-            "success": True
-        }
+        # ---------------------------------------------------------------
+        # When server-side execution is DISABLED we still want to return
+        # the generated SQL even though the execute_sql_with_analysis
+        # tool is never invoked. In that case the query is usually
+        # embedded inside the agent response within a markdown code block.
+        # We extract it and clean it up so that callers receive a plain
+        # runnable SQL string.
+        # ---------------------------------------------------------------
+        if not ENABLE_SERVER_SQL_EXEC and sql_query is None and isinstance(agent_reply, str):
+            import re
+            # Attempt to capture everything between ```sql ... ``` fences
+            pattern = r"```sql\s*([\s\S]+?)\s*```"
+            match = re.search(pattern, agent_reply, flags=re.IGNORECASE)
+            if match:
+                extracted_sql = match.group(1)
+            else:
+                # Fallback: grab the first semicolon-terminated statement
+                fallback_match = re.search(r"SELECT[\s\S]+?;", agent_reply, flags=re.IGNORECASE)
+                extracted_sql = fallback_match.group(0) if fallback_match else None
+            if extracted_sql:
+                # Strip newlines/tabs and collapse multiple spaces
+                cleaned = " ".join(extracted_sql.split())
+                sql_query = cleaned.strip()
+        
+        # Build the response payload. We return a leaner payload when
+        # server-side execution is disabled, as the client can run the
+        # query locally.
+        if not ENABLE_SERVER_SQL_EXEC:
+            return {
+                "user_message": request.message,
+                "tools_used": used_tools,
+                "sql_query": sql_query,
+                "reflection_applied": "reflect_on_sql" in used_tools,
+                "reflection_results": reflection_results,
+                "thread_id": request.thread_id,
+                "success": True,
+            }
+        else:
+            return {
+                "user_message": request.message,
+                "agent_response": agent_reply,
+                "tools_used": used_tools,
+                "sql_query": sql_query,
+                "sql_results": sql_results,
+                "reflection_applied": "reflect_on_sql" in used_tools,
+                "reflection_results": reflection_results,
+                "thread_id": request.thread_id,
+                "success": True
+            }
         
     except Exception as e:
         print(f"❌ Error in enhanced chat: {str(e)}")
